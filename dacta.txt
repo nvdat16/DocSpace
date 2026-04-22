@@ -1,0 +1,259 @@
+1. Giới thiệu hệ thống
+1.1. Tên hệ thống
+
+Hệ thống website quản lý tài liệu.
+
+1.2. Mục tiêu hệ thống
+
+Hệ thống được xây dựng nhằm hỗ trợ người dùng lưu trữ, tổ chức, tìm kiếm, chia sẻ và quản lý vòng đời tài liệu trong môi trường số. Hệ thống không chỉ cho phép quản lý tài liệu theo thư mục mà còn hỗ trợ phân quyền người dùng, theo dõi phiên bản tài liệu, gắn thẻ phân loại, chia sẻ tài liệu và quản lý xóa mềm để tăng độ an toàn dữ liệu.
+
+1.3. Phạm vi áp dụng
+
+Hệ thống phù hợp cho doanh nghiệp, tổ chức, phòng ban hoặc nhóm làm việc cần lưu trữ tài liệu tập trung, đảm bảo khả năng truy xuất nhanh, kiểm soát quyền truy cập và duy trì lịch sử cập nhật tài liệu.
+
+2. Tổng quan nghiệp vụ
+
+Hệ thống được xây dựng xoay quanh các nhóm chức năng chính: quản lý người dùng và vai trò, quản lý thư mục, quản lý tài liệu, phân loại tài liệu bằng thẻ, quản lý phiên bản, chia sẻ tài liệu và quản lý tài liệu đã xóa. Dựa trên ERD, hệ thống tổ chức dữ liệu theo mô hình quan hệ với bảng trung tâm là documents, liên kết đến các bảng users, folders, document_versions, shares, tags, document_tags, deleted_documents, roles và user_roles.
+
+3. Đặc tả chức năng hệ thống
+3.1. Chức năng quản lý người dùng
+3.1.1. Mô tả
+
+Chức năng này cho phép hệ thống quản lý thông tin tài khoản người dùng, phục vụ đăng ký, đăng nhập, cập nhật hồ sơ cá nhân và phân quyền truy cập.
+
+3.1.2. Dữ liệu liên quan
+
+Bảng users gồm các thuộc tính:
+
+id: mã người dùng
+username: tên đăng nhập
+email: thư điện tử
+password_hash: mật khẩu đã mã hóa
+fullname: họ tên người dùng
+avatar_url: ảnh đại diện
+status: trạng thái tài khoản
+3.1.3. Chức năng chi tiết
+
+Người dùng có thể tạo tài khoản mới, đăng nhập vào hệ thống bằng tên đăng nhập hoặc email và mật khẩu. Sau khi đăng nhập, người dùng có thể cập nhật thông tin cá nhân như họ tên, email, avatar và thay đổi mật khẩu. Trạng thái tài khoản được dùng để xác định người dùng còn hoạt động hay đã bị khóa.
+
+3.2. Chức năng phân quyền theo vai trò
+3.2.1. Mô tả
+
+Hệ thống áp dụng mô hình phân quyền theo vai trò nhằm đảm bảo mỗi người dùng chỉ được thực hiện các thao tác phù hợp với quyền hạn được cấp.
+
+3.2.2. Dữ liệu liên quan
+Bảng roles:
+id: mã vai trò
+name: tên vai trò
+description: mô tả vai trò
+Bảng user_roles:
+id: mã phân quyền
+user_id: mã người dùng
+role_id: mã vai trò
+3.2.3. Chức năng chi tiết
+
+Mỗi người dùng có thể được gán một hoặc nhiều vai trò thông qua bảng trung gian user_roles. Các vai trò tiêu biểu gồm:
+
+Admin: quản trị toàn bộ hệ thống
+Editor: tải lên, chỉnh sửa, cập nhật tài liệu
+Viewer: chỉ được xem tài liệu
+
+Trước khi thực hiện các thao tác nhạy cảm như xóa tài liệu, chia sẻ hoặc cập nhật phiên bản, hệ thống phải kiểm tra vai trò của người dùng.
+
+3.3. Chức năng quản lý thư mục
+3.3.1. Mô tả
+
+Hệ thống cho phép tổ chức tài liệu theo cấu trúc cây thư mục cha – con để tăng khả năng quản lý và phân loại.
+
+3.3.2. Dữ liệu liên quan
+
+Bảng folders gồm:
+
+id: mã thư mục
+name: tên thư mục
+parent_id: mã thư mục cha
+owner_id: người sở hữu thư mục
+created_at: thời gian tạo
+updated_at: thời gian cập nhật
+3.3.3. Chức năng chi tiết
+
+Người dùng có thể tạo thư mục mới, đổi tên thư mục, di chuyển thư mục sang vị trí khác trong cây cấu trúc và xóa thư mục nếu được cấp quyền. Thuộc tính parent_id cho phép hình thành mô hình cây nhiều cấp. Thuộc tính owner_id cho phép xác định chủ sở hữu của thư mục.
+
+3.4. Chức năng quản lý tài liệu
+3.4.1. Mô tả
+
+Đây là chức năng trung tâm của hệ thống, cho phép lưu trữ và quản lý các tệp tài liệu.
+
+3.4.2. Dữ liệu liên quan
+
+Bảng documents gồm:
+
+id: mã tài liệu
+title: tiêu đề tài liệu
+description: mô tả tài liệu
+file_url: đường dẫn lưu file
+file_type: loại file
+file_size: kích thước file
+owner_id: người sở hữu tài liệu
+folder_id: thư mục chứa tài liệu
+is_deleted: trạng thái xóa mềm
+created_at: thời gian tạo
+updated_at: thời gian cập nhật
+3.4.3. Chức năng chi tiết
+
+Người dùng có quyền có thể tải tài liệu lên hệ thống. Khi tải lên, hệ thống lưu thông tin mô tả, loại tài liệu, dung lượng file, người tải lên và thư mục chứa tài liệu. Người dùng cũng có thể chỉnh sửa tiêu đề, mô tả, đổi vị trí thư mục hoặc thay thế file tài liệu. Một tài liệu luôn gắn với một người sở hữu và có thể thuộc một thư mục cụ thể.
+
+Trường is_deleted cho biết tài liệu đã bị xóa mềm hay chưa. Điều này cho phép dữ liệu vẫn tồn tại trên hệ thống trước khi bị xóa vĩnh viễn.
+
+3.5. Chức năng gắn thẻ và phân loại tài liệu
+3.5.1. Mô tả
+
+Để tăng khả năng tìm kiếm và tổ chức tài liệu, hệ thống hỗ trợ gắn thẻ cho tài liệu.
+
+3.5.2. Dữ liệu liên quan
+Bảng tags:
+id: mã thẻ
+name: tên thẻ
+Bảng document_tags:
+document_id: mã tài liệu
+tag_id: mã thẻ
+3.5.3. Chức năng chi tiết
+
+Một tài liệu có thể được gắn nhiều thẻ và một thẻ có thể áp dụng cho nhiều tài liệu. Quan hệ nhiều – nhiều này được thể hiện qua bảng document_tags. Người dùng có thể tạo thẻ mới, gắn thẻ vào tài liệu hoặc bỏ thẻ khi không còn phù hợp. Tính năng này hỗ trợ mạnh cho tìm kiếm theo chủ đề, nội dung hoặc nhóm tài liệu.
+
+3.6. Chức năng tìm kiếm và truy xuất tài liệu
+3.6.1. Mô tả
+
+Hệ thống cho phép người dùng nhanh chóng tìm tài liệu theo nhiều tiêu chí khác nhau.
+
+3.6.2. Dữ liệu sử dụng
+
+Chức năng này khai thác chủ yếu dữ liệu từ bảng documents, đồng thời kết hợp với tags, document_tags, users và folders.
+
+3.6.3. Chức năng chi tiết
+
+Người dùng có thể tìm kiếm tài liệu theo:
+
+tiêu đề tài liệu (title)
+mô tả (description)
+loại tài liệu (file_type)
+thẻ (tags)
+người sở hữu (owner_id)
+thư mục chứa tài liệu (folder_id)
+khoảng thời gian tạo hoặc cập nhật (created_at, updated_at)
+
+Hệ thống cũng hỗ trợ lọc theo trạng thái xóa, loại file hoặc người tải lên để việc truy xuất tài liệu nhanh và chính xác hơn.
+
+3.7. Chức năng quản lý phiên bản tài liệu
+3.7.1. Mô tả
+
+Để hỗ trợ theo dõi thay đổi trong quá trình cập nhật tài liệu, hệ thống quản lý các phiên bản khác nhau của cùng một tài liệu.
+
+3.7.2. Dữ liệu liên quan
+
+Bảng document_versions gồm:
+
+id: mã phiên bản
+document_id: mã tài liệu
+version_number: số thứ tự phiên bản
+file_url: đường dẫn file phiên bản
+file_size: dung lượng file phiên bản
+update_by: người cập nhật
+created_at: thời gian tạo phiên bản
+3.7.3. Chức năng chi tiết
+
+Mỗi lần tài liệu được cập nhật nội dung file, hệ thống tạo một bản ghi mới trong bảng document_versions. Nhờ đó, người dùng có thể xem lại lịch sử các lần cập nhật, biết được ai đã chỉnh sửa và thời điểm chỉnh sửa. Chức năng này tạo nền tảng để triển khai thêm khả năng khôi phục về phiên bản cũ hoặc so sánh giữa các phiên bản.
+
+3.8. Chức năng chia sẻ tài liệu
+3.8.1. Mô tả
+
+Hệ thống hỗ trợ chia sẻ tài liệu cho người khác thông qua cơ chế chia sẻ nội bộ hoặc liên kết ngoài.
+
+3.8.2. Dữ liệu liên quan
+
+Bảng shares gồm:
+
+id: mã chia sẻ
+document_id: mã tài liệu được chia sẻ
+shared_by: người tạo chia sẻ
+share_type: loại chia sẻ
+password: mật khẩu bảo vệ
+expires_at: thời hạn hết hiệu lực
+created_at: thời gian tạo chia sẻ
+3.8.3. Chức năng chi tiết
+
+Người dùng có quyền có thể tạo liên kết chia sẻ cho tài liệu. Mỗi bản chia sẻ xác định rõ tài liệu nào được chia sẻ, ai là người thực hiện chia sẻ, loại chia sẻ là nội bộ hay công khai, có đặt mật khẩu hay không và thời gian hết hạn truy cập. Chức năng này hỗ trợ tăng tính linh hoạt trong trao đổi tài liệu nhưng vẫn đảm bảo yếu tố bảo mật thông qua mật khẩu và thời hạn truy cập.
+
+3.9. Chức năng quản lý xóa mềm và khôi phục
+3.9.1. Mô tả
+
+Hệ thống không xóa ngay tài liệu khỏi cơ sở dữ liệu mà áp dụng cơ chế xóa mềm để đảm bảo an toàn dữ liệu và hỗ trợ khôi phục.
+
+3.9.2. Dữ liệu liên quan
+
+Bảng deleted_documents gồm:
+
+id: mã bản ghi xóa
+original_document_id: mã tài liệu gốc
+deleted_by: người thực hiện xóa
+deleted_at: thời điểm xóa
+auto_deleted_at: thời điểm hệ thống xóa vĩnh viễn
+
+Ngoài ra, bảng documents còn có trường:
+
+is_deleted: đánh dấu tài liệu đã bị xóa mềm
+3.9.3. Chức năng chi tiết
+
+Khi người dùng xóa tài liệu, hệ thống không loại bỏ bản ghi ngay mà cập nhật is_deleted = true trong bảng documents, đồng thời ghi nhận thông tin vào bảng deleted_documents. Tài liệu sau đó sẽ xuất hiện trong thùng rác. Trong khoảng thời gian lưu giữ, người dùng hoặc quản trị viên có thể khôi phục tài liệu. Nếu quá thời hạn được định nghĩa bởi auto_deleted_at, hệ thống sẽ xóa vĩnh viễn tài liệu khỏi hệ thống.
+
+4. Mối quan hệ dữ liệu trong hệ thống
+
+Dựa trên ERD, các quan hệ chính được mô tả như sau:
+
+Một user có thể có nhiều role thông qua bảng user_roles.
+Một user có thể sở hữu nhiều folders.
+Một folder có thể chứa nhiều documents.
+Một document thuộc về một user và một folder.
+Một document có thể có nhiều document_versions.
+Một document có thể được chia sẻ nhiều lần qua bảng shares.
+Một document có thể gắn nhiều tags, và một tag có thể áp dụng cho nhiều documents thông qua document_tags.
+Một document sau khi bị xóa mềm sẽ được ghi nhận tại deleted_documents.
+Một user có thể là người cập nhật phiên bản tài liệu, người chia sẻ tài liệu hoặc người xóa tài liệu.
+5. Yêu cầu phi chức năng
+5.1. Bảo mật
+
+Hệ thống phải mã hóa mật khẩu trước khi lưu vào trường password_hash. Các thao tác nhạy cảm như xóa, chia sẻ, cập nhật tài liệu phải được xác thực và kiểm tra quyền truy cập. Các liên kết chia sẻ công khai cần hỗ trợ mật khẩu và thời hạn sử dụng.
+
+5.2. Hiệu năng
+
+Hệ thống cần phản hồi nhanh trong các tác vụ tìm kiếm, truy xuất danh sách tài liệu và tải file. Cần tối ưu truy vấn tại các bảng có quan hệ lớn như documents, document_versions, document_tags và shares.
+
+5.3. Tính toàn vẹn dữ liệu
+
+Các khóa ngoại giữa bảng người dùng, tài liệu, thư mục, vai trò, phiên bản và chia sẻ phải được đảm bảo nhất quán. Khi xóa dữ liệu, hệ thống cần xử lý phù hợp để tránh mất liên kết dữ liệu.
+
+5.4. Khả năng mở rộng
+
+Mô hình cơ sở dữ liệu hiện tại cho phép mở rộng thêm các chức năng như bình luận trên tài liệu, nhật ký hoạt động, OCR trích xuất nội dung hoặc tích hợp AI gợi ý thẻ tài liệu.
+
+6. Kịch bản nghiệp vụ tiêu biểu
+6.1. Tải lên tài liệu
+
+Người dùng đăng nhập vào hệ thống, chọn thư mục đích, tải tệp lên, nhập tiêu đề và mô tả. Hệ thống lưu file, tạo bản ghi trong bảng documents và gắn chủ sở hữu là người dùng hiện tại.
+
+6.2. Cập nhật tài liệu
+
+Người dùng có quyền chỉnh sửa một tài liệu hiện có. Khi tệp mới được tải lên thay thế, hệ thống lưu phiên bản mới trong bảng document_versions, đồng thời cập nhật thông tin ở bảng documents.
+
+6.3. Gắn thẻ cho tài liệu
+
+Người dùng tạo hoặc chọn thẻ có sẵn, sau đó hệ thống tạo bản ghi trong document_tags để liên kết tài liệu và thẻ.
+
+6.4. Chia sẻ tài liệu
+
+Người dùng chọn tài liệu cần chia sẻ, thiết lập loại chia sẻ, mật khẩu và ngày hết hạn. Hệ thống tạo bản ghi trong shares và sinh đường dẫn truy cập phù hợp.
+
+6.5. Xóa và khôi phục tài liệu
+
+Khi xóa, tài liệu được đánh dấu xóa mềm và ghi nhận vào deleted_documents. Nếu người dùng muốn khôi phục trước thời hạn, hệ thống chuyển trạng thái tài liệu về bình thường.
+
