@@ -1,0 +1,30 @@
+Các chức năng chính:
+1. Quản lý người dùng
+- Quản lý người dùng: Đăng ký, đăng nhập, quản lý thông tin cá nhân.
+- Phân quyền dựa trên vai trò: Thiết lập các nhóm quyền như Admin (toàn quyền),
+Editor (chỉnh sửa/upload), và Viewer (chỉ xem).
+- Kiểm soát truy cập: Xác thực quyền hạn trước khi thực hiện các hành động nhạy 
+cảm (Xóa, Tải về, Chia sẻ).
+
+2. Quản lý tài liệu và thư mục
+- Lưu trữ: 
+- Metadata và phân loại: Tự động/thủ công tạo thông tin mô tả
+- Cấu trúc cây: Tổ chức tài liệu theo thư mục cha-con, hỗ trợ di chuyển và đổi
+tên linh hoạt
+- Xem trước: Hỗ trợ xem trực tiếp các định dạng PDF, Docx, hình ảnh ngay trên
+trình duyệt mà không cần tải về.
+
+3. Tìm kiếm và truy xuất tài liệu
+- Tìm kiếm: Tìm theo tên file, theo tag, theo mô tả.
+- Bộ lọc: Lọc tài liệu theo khoảng thời gian, loại định dạng (PDF/Word/Excel) 
+hoặc theo người sở hữu.
+
+4. Quản lý phiên bản
+- Ghi lại lịch sử các lần cập nhật, cho phép so sánh hoặc khôi phục về phiên bản cũ.
+
+5. Chia sẻ tài liệu
+- Tạo link chia sẻ nội bộ hoặc link công khai (có đặt mật khẩu và thời hạn truy cập)
+
+6. Quản lý xoá và khôi phục
+- Xoá mềm: Lưu trữ bản xoá trong 30 ngày trước khi loại bỏ hoàn toàn khỏi thùng rác
+- Thùng rác: Quản lý các tài liệu đã xóa, hỗ trợ khôi phục hoặc xóa vĩnh viễn.
