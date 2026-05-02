@@ -1,0 +1,3 @@
+exports.listVersionsSchema = {
+  documentId: 'number',
+};

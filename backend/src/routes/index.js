@@ -1,13 +1,13 @@
 const express = require('express');
 
-const authRoutes = require('../modules/auth/auth.routes');
-const userRoutes = require('../modules/users/user.routes');
-const documentRoutes = require('../modules/documents/document.routes');
-const folderRoutes = require('../modules/folders/folder.routes');
-const searchRoutes = require('../modules/search/search.routes');
-const shareRoutes = require('../modules/shares/share.routes');
-const versionRoutes = require('../modules/versions/version.routes');
-const trashRoutes = require('../modules/trash/trash.routes');
+const authRoutes = require('./auth.routes');
+const userRoutes = require('./user.routes');
+const documentRoutes = require('./document.routes');
+const folderRoutes = require('./folder.routes');
+const searchRoutes = require('./search.routes');
+const shareRoutes = require('./share.routes');
+const versionRoutes = require('./version.routes');
+const trashRoutes = require('./trash.routes');
 
 const router = express.Router();
 

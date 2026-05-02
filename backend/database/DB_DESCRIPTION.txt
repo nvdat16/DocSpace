@@ -1,0 +1,69 @@
+TÀI LIỆU MÔ TẢ DATABASE DOCSPACE
+
+1. Mục đích
+Database này dùng để quản lý người dùng, thư mục, tài liệu, phiên bản tài liệu, chia sẻ và thùng rác.
+
+2. Các bảng chính
+
+- roles
+  Lưu danh sách vai trò: Admin, Editor, Viewer.
+
+- users
+  Lưu thông tin người dùng: họ tên, email, mật khẩu, avatar, trạng thái.
+
+- user_roles
+  Bảng liên kết nhiều-nhiều giữa users và roles.
+
+- folders
+  Lưu thư mục cha-con, hỗ trợ phân cấp cây thư mục.
+  Trường parent_id dùng để xác định thư mục cha.
+
+- documents
+  Lưu thông tin tài liệu:
+  - title: tiêu đề tài liệu
+  - description: mô tả
+  - file_name / original_name / file_path: thông tin file
+  - mime_type: loại file
+  - size / file_size: dung lượng
+  - tags: nhãn phân loại
+  - owner_id: người sở hữu
+  - folder_id: thư mục chứa
+  - status: active / trash / archived
+
+- document_versions
+  Lưu lịch sử phiên bản của từng tài liệu.
+  Mỗi tài liệu có thể có nhiều version.
+
+- shares
+  Lưu thông tin chia sẻ tài liệu:
+  - chia sẻ nội bộ hoặc public
+  - token chia sẻ
+  - mật khẩu
+  - thời hạn truy cập
+  - số lượt xem
+
+- trash_items
+  Lưu lịch sử các mục bị xóa mềm.
+  Hỗ trợ khôi phục trong thời gian quy định.
+
+3. Quan hệ giữa các bảng
+
+- users 1-n folders
+- users 1-n documents
+- folders 1-n folders (self reference qua parent_id)
+- folders 1-n documents
+- documents 1-n document_versions
+- documents 1-n shares
+- users n-n roles qua user_roles
+
+4. Quy ước trạng thái
+
+- active: đang hoạt động
+- trash: đã xóa mềm
+- archived: đã lưu trữ
+
+5. Ghi chú
+
+- Các bảng đều dùng InnoDB để hỗ trợ khóa ngoại.
+- Sử dụng utf8mb4 để hỗ trợ tiếng Việt và ký tự đặc biệt.
+- Trường tags được lưu dạng JSON để dễ mở rộng.
