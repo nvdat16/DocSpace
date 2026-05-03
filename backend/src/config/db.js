@@ -4,7 +4,7 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  password: process.env.DB_PASSWORD || '12345678',
   database: process.env.DB_NAME || 'docspace',
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
@@ -28,8 +28,24 @@ async function initializeDatabase() {
   });
 
   try {
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \\`${database}\\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    await connection.query(`USE \\`${database}\\``);
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await connection.query(`USE \`${database}\``);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        full_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        avatar_url VARCHAR(255) NULL,
+        status ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_users_email (email),
+        KEY idx_users_status (status)
+      ) ENGINE=InnoDB
+    `);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS folders (
