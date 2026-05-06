@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createFolder, getDocuments, getFolders, uploadDocument } from '../services/documents.api';
+import { createFolder, deleteDocument, getDocuments, getFolders, updateDocument, uploadDocument } from '../services/documents.api';
 import '../styles/documentDashboard.css';
 
 const fallbackDocs = [
@@ -60,12 +60,17 @@ function getDocMetaFromApi(doc) {
   const mimeKey = (doc.mimeType || doc.mime_type || '').split('/').pop();
   const typeInfo = apiToUiType[ext] || apiToUiType[mimeKey] || { cls: 'img-bg', label: 'FILE' };
   const createdAt = doc.createdAt || doc.created_at;
+  const folderId = doc.folderId ?? doc.folder_id ?? null;
 
   return {
     id: doc.id,
     name: fileName,
     type: ext || mimeKey || 'img',
+    folderId,
     folder: doc.folderName || doc.folder_name || '',
+    title: doc.title || fileName,
+    description: doc.description || '',
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
     size: getSizeLabel(doc.size),
     date: createdAt ? new Date(createdAt).toLocaleDateString('vi-VN') : '—',
     typeLabel: typeInfo.label,
@@ -120,11 +125,14 @@ function ActionIcon({ type }) {
 export default function DocumentDashboard() {
   const [docs, setDocs] = useState([]);
   const [folders, setFolders] = useState([]);
+  const [activeFolderId, setActiveFolderId] = useState('all');
   const [searchQ, setSearchQ] = useState('');
   const [curTab, setCurTab] = useState('all');
   const [curView, setCurView] = useState('grid');
   const [showUploadZone, setShowUploadZone] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   const [toast, setToast] = useState('');
@@ -142,6 +150,8 @@ export default function DocumentDashboard() {
     parentId: '',
   });
   const [selectedFile, setSelectedFile] = useState(null);
+  const [editingDoc, setEditingDoc] = useState(null);
+  const [deletingDoc, setDeletingDoc] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -174,11 +184,38 @@ export default function DocumentDashboard() {
   const filteredDocs = useMemo(() => {
     const query = searchQ.trim().toLowerCase();
     return docs.filter((doc) => {
+      const docFolderId = doc.folderId === undefined || doc.folderId === null || doc.folderId === '' ? null : Number(doc.folderId);
       const matchTab = curTab === 'all' || doc.type === curTab;
+      const matchFolder = activeFolderId === 'all' ? true : docFolderId === Number(activeFolderId);
       const matchQuery = !query || doc.name.toLowerCase().includes(query) || doc.folder.toLowerCase().includes(query);
-      return matchTab && matchQuery;
+      return matchTab && matchFolder && matchQuery;
     });
-  }, [curTab, docs, searchQ]);
+  }, [activeFolderId, curTab, docs, searchQ]);
+
+  const rootFolders = useMemo(() => {
+    return folders.filter((folder) => folder.parentId === null || folder.parentId === undefined || folder.parentId === '');
+  }, [folders]);
+
+  const activeFolder = useMemo(() => {
+    if (activeFolderId === 'all') return null;
+    return folders.find((folder) => Number(folder.id) === Number(activeFolderId)) || null;
+  }, [activeFolderId, folders]);
+
+  const activeFolderPath = useMemo(() => {
+    if (!activeFolder) return [];
+
+    const byId = new Map(folders.map((folder) => [Number(folder.id), folder]));
+    const path = [];
+    let cursor = activeFolder;
+
+    while (cursor) {
+      path.unshift(cursor);
+      const parentId = cursor.parentId === undefined || cursor.parentId === null || cursor.parentId === '' ? null : Number(cursor.parentId);
+      cursor = parentId !== null ? byId.get(parentId) || null : null;
+    }
+
+    return path;
+  }, [activeFolder, folders]);
 
   const showToast = (message) => {
     setToast(message);
@@ -212,8 +249,47 @@ export default function DocumentDashboard() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const closeEditModal = () => {
+    if (!editingDoc) return;
+    setShowEditModal(false);
+    setEditingDoc(null);
+  };
+
+  const closeDeleteModal = () => {
+    if (!deletingDoc) return;
+    setShowDeleteModal(false);
+    setDeletingDoc(null);
+  };
+
   const openFolderModal = () => {
     setShowFolderModal(true);
+  };
+
+  const openEditModal = (doc) => {
+    setEditingDoc({
+      id: doc.id,
+      title: doc.title || doc.name,
+      description: doc.description || '',
+      folderId: doc.folderId || '',
+      tags: Array.isArray(doc.tags) ? doc.tags.join(', ') : '',
+    });
+    setShowEditModal(true);
+  };
+
+  const openFolder = (folderId) => {
+    setActiveFolderId(folderId === null ? 'all' : Number(folderId));
+    setSelected(new Set());
+    setCurTab('all');
+    setSearchQ('');
+  };
+
+  const handleNavItemClick = (item) => {
+    if (item.label === 'Tất cả tài liệu') {
+      openFolder(null);
+      return;
+    }
+
+    showToast(`Đã chuyển sang ${item.label}`);
   };
 
   const closeFolderModal = () => {
@@ -302,6 +378,59 @@ export default function DocumentDashboard() {
     }
   };
 
+  const handleEditFieldChange = (field) => (event) => {
+    setEditingDoc((current) => ({
+      ...current,
+      [field]: event.target.value,
+    }));
+  };
+
+  const handleEditSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!editingDoc?.title?.trim()) {
+      showToast('Vui lòng nhập tiêu đề');
+      return;
+    }
+
+    try {
+      await updateDocument(editingDoc.id, {
+        title: editingDoc.title.trim(),
+        description: editingDoc.description || '',
+        folderId: editingDoc.folderId || null,
+        tags: (editingDoc.tags || '')
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      });
+
+      const response = await getDocuments();
+      setDocs((response.data || []).map(getDocMetaFromApi));
+      showToast('Đã cập nhật tài liệu');
+      closeEditModal();
+    } catch (error) {
+      showToast(error.message || 'Cập nhật thất bại');
+    }
+  };
+
+  const handleDeleteDocument = async (doc) => {
+    setDeletingDoc(doc);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!deletingDoc) return;
+
+    try {
+      await deleteDocument(deletingDoc.id);
+      setDocs((current) => current.filter((item) => item.id !== deletingDoc.id));
+      showToast('Đã xóa tài liệu');
+      closeDeleteModal();
+    } catch (error) {
+      showToast(error.message || 'Xóa thất bại');
+    }
+  };
+
   const hasDocs = filteredDocs.length > 0;
 
   return (
@@ -310,7 +439,12 @@ export default function DocumentDashboard() {
         <div className="doc-logo">Doc<span>Space</span></div>
 
         {navItems.map((item) => (
-          <button key={item.label} type="button" className={`doc-nav-item${item.active ? ' active' : ''}`} onClick={() => showToast(`Đã chuyển sang ${item.label}`)}>
+          <button
+            key={item.label}
+            type="button"
+            className={`doc-nav-item${item.label === 'Tất cả tài liệu' && activeFolderId === 'all' ? ' active' : ''}`}
+            onClick={() => handleNavItemClick(item)}
+          >
             <Icon name={item.icon} />
             {item.label}
             {item.badge ? <span className="doc-badge">{item.badge}</span> : null}
@@ -320,7 +454,7 @@ export default function DocumentDashboard() {
         <div className="doc-nav-section">Thư mục</div>
 
         {folders.map((item) => (
-          <button key={item.id} type="button" className="doc-nav-item" onClick={() => showToast(`Đang mở thư mục ${item.name}`)}>
+          <button key={item.id} type="button" className={`doc-nav-item${Number(activeFolderId) === Number(item.id) ? ' active' : ''}`} onClick={() => openFolder(item.id)}>
             <Icon name="folder" />
             {item.name}
           </button>
@@ -340,7 +474,9 @@ export default function DocumentDashboard() {
 
       <div className="doc-main">
         <div className="doc-topbar">
-          <span className="doc-topbar-title">Tất cả tài liệu</span>
+          <span className="doc-topbar-title">
+            {activeFolder ? activeFolder.name : 'Tất cả tài liệu'}
+          </span>
 
           <div className="doc-search-wrap">
             <ActionIcon type="search" />
@@ -372,6 +508,42 @@ export default function DocumentDashboard() {
         </div>
 
         <div className="doc-content">
+          {activeFolderPath.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12, color: '#64748b' }}>
+              <button type="button" className="doc-tab" onClick={() => openFolder(null)}>Tất cả tài liệu</button>
+              {activeFolderPath.map((folder, index) => (
+                <React.Fragment key={folder.id}>
+                  <span>/</span>
+                  <button
+                    type="button"
+                    className={`doc-tab${index === activeFolderPath.length - 1 ? ' active' : ''}`}
+                    onClick={() => openFolder(folder.id)}
+                  >
+                    {folder.name}
+                  </button>
+                </React.Fragment>
+              ))}
+            </div>
+          ) : null}
+
+          {activeFolderId === 'all' ? (
+            <div className="doc-folder-grid" style={{ marginBottom: 16 }}>
+              {rootFolders.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  className="doc-card"
+                  style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}
+                  onClick={() => openFolder(folder.id)}
+                >
+                  <div className="doc-icon img-bg">FOLDER</div>
+                  <div className="doc-name">{folder.name}</div>
+                  <div className="doc-meta">Thư mục</div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className={`doc-upload-zone${showUploadZone ? ' show' : ''}`} onClick={openUploadModal}>
             <ActionIcon type="upload-zone" />
             Kéo thả tệp vào đây hoặc nhấn để chọn tệp
@@ -395,7 +567,7 @@ export default function DocumentDashboard() {
           ) : null}
 
           {!loadingDocs && !hasDocs ? (
-            <div style={{ padding: '24px 8px', color: 'var(--color-text-tertiary, #94a3b8)' }}>Chưa có tài liệu nào trong MySQL.</div>
+            <div style={{ padding: '24px 8px', color: 'var(--color-text-tertiary, #94a3b8)' }}>Chưa có tài liệu nào.</div>
           ) : null}
 
           <div className={`doc-grid${curView === 'grid' ? '' : ' is-hidden'}`}>
@@ -405,8 +577,12 @@ export default function DocumentDashboard() {
                 <div key={`${doc.name}-${idx}`} className={`doc-card${isSelected ? ' selected' : ''}`} onClick={() => toggleSelect(idx)}>
                   <div className={`doc-icon ${doc.typeClass || 'img-bg'}`}>{doc.typeLabel || 'FILE'}</div>
                   <div className="doc-actions">
-                    <button type="button" className="doc-icon-btn" onClick={(event) => { event.stopPropagation(); showToast('Đã gắn sao!'); }}>☆</button>
-                    <button type="button" className="doc-icon-btn" onClick={(event) => { event.stopPropagation(); showToast('Đã tải xuống!'); }}>↓</button>
+                    <button type="button" className="doc-icon-btn edit" onClick={(event) => { event.stopPropagation(); openEditModal(doc); }} aria-label="Sửa tài liệu" title="Sửa">
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.5 1.5l3 3L5.5 13.5 2 14l.5-3.5L11.5 1.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M10 3l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                    </button>
+                    <button type="button" className="doc-icon-btn delete" onClick={(event) => { event.stopPropagation(); handleDeleteDocument(doc); }} aria-label="Xoá tài liệu" title="Xoá">
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 4h10M6 4V2.8A.8.8 0 016.8 2h2.4a.8.8 0 01.8.8V4m-5 0l.4 9a1 1 0 001 .95h2.2a1 1 0 001-.95L11 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 7v4M9.5 7v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                    </button>
                   </div>
                   <div className="doc-name" title={doc.name}>{doc.name}</div>
                   <div className="doc-meta">{doc.size} · {doc.date}</div>
@@ -424,6 +600,7 @@ export default function DocumentDashboard() {
               <div className="doc-list-col-hd">Thư mục</div>
               <div className="doc-list-col-hd">Kích thước</div>
               <div className="doc-list-col-hd">Ngày</div>
+              <div className="doc-list-col-hd actions">Thao tác</div>
             </div>
 
             {filteredDocs.map((doc, idx) => {
@@ -436,6 +613,14 @@ export default function DocumentDashboard() {
                   <div className="doc-list-col">{doc.folder ? <span className="doc-folder-chip">{doc.folder}</span> : '-'}</div>
                   <div className="doc-list-col">{doc.size}</div>
                   <div className="doc-list-col">{doc.date}</div>
+                  <div className="doc-list-actions">
+                    <button type="button" className="doc-action-icon-btn edit" onClick={(event) => { event.stopPropagation(); openEditModal(doc); }} aria-label="Sửa tài liệu" title="Sửa">
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.5 1.5l3 3L5.5 13.5 2 14l.5-3.5L11.5 1.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M10 3l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                    </button>
+                    <button type="button" className="doc-action-icon-btn delete" onClick={(event) => { event.stopPropagation(); handleDeleteDocument(doc); }} aria-label="Xoá tài liệu" title="Xoá">
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 4h10M6 4V2.8A.8.8 0 016.8 2h2.4a.8.8 0 01.8.8V4m-5 0l.4 9a1 1 0 001 .95h2.2a1 1 0 001-.95L11 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 7v4M9.5 7v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -564,6 +749,80 @@ export default function DocumentDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showEditModal && editingDoc ? (
+        <div className="doc-modal-backdrop" onClick={closeEditModal}>
+          <div className="doc-modal doc-modal-sm" onClick={(event) => event.stopPropagation()}>
+            <div className="doc-modal-header">
+              <div>
+                <div className="doc-modal-title">Sửa tài liệu</div>
+                <div className="doc-modal-subtitle">Cập nhật metadata của tài liệu</div>
+              </div>
+              <button type="button" className="doc-modal-close" onClick={closeEditModal}>×</button>
+            </div>
+
+            <form className="doc-modal-form" onSubmit={handleEditSubmit}>
+              <label className="doc-field">
+                <span>Tiêu đề</span>
+                <input value={editingDoc.title} onChange={handleEditFieldChange('title')} required />
+              </label>
+
+              <label className="doc-field">
+                <span>Thư mục</span>
+                <select value={editingDoc.folderId || ''} onChange={handleEditFieldChange('folderId')}>
+                  <option value="">Chưa phân loại</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="doc-field">
+                <span>Mô tả</span>
+                <textarea rows="4" value={editingDoc.description} onChange={handleEditFieldChange('description')} />
+              </label>
+
+              <label className="doc-field">
+                <span>Tags</span>
+                <input value={editingDoc.tags} onChange={handleEditFieldChange('tags')} placeholder="tag1, tag2" />
+              </label>
+
+              <div className="doc-modal-actions">
+                <button type="button" className="doc-btn doc-btn-ghost" onClick={closeEditModal}>Hủy</button>
+                <button type="submit" className="doc-btn doc-btn-primary">Lưu thay đổi</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showDeleteModal && deletingDoc ? (
+        <div className="doc-modal-backdrop" onClick={closeDeleteModal}>
+          <div className="doc-confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="doc-confirm-illustration danger">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 8v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path d="M12 17h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                <path d="M10.3 4.8L2.8 18a2 2 0 001.8 3h15a2 2 0 001.8-3L14.1 4.8a2.4 2.4 0 00-3.8 0z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className="doc-confirm-title">Xóa tài liệu?</div>
+            <div className="doc-confirm-text">
+              Tài liệu <strong>{deletingDoc.name}</strong> sẽ được chuyển vào thùng rác. Bạn có thể khôi phục lại sau.
+            </div>
+            <div className="doc-confirm-actions">
+              <button type="button" className="doc-btn doc-btn-ghost" onClick={closeDeleteModal}>
+                Hủy
+              </button>
+              <button type="button" className="doc-btn doc-btn-danger" onClick={confirmDeleteDocument}>
+                Xóa tài liệu
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
