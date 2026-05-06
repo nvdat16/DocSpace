@@ -5,7 +5,23 @@ function mapFolderRow(row) {
     id: Number(row.id),
     name: row.name,
     parentId: row.parent_id,
+    parent:
+      row.parent_id !== null && row.parent_id !== undefined
+        ? {
+            id: Number(row.parent_id),
+            name: row.parent_name || '',
+          }
+        : null,
     ownerId: row.owner_id,
+    owner:
+      row.owner_id !== null && row.owner_id !== undefined
+        ? {
+            id: Number(row.owner_id),
+            fullName: row.owner_full_name || '',
+            email: row.owner_email || '',
+            avatarUrl: row.owner_avatar_url || '',
+          }
+        : null,
     status: row.status,
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
@@ -17,27 +33,32 @@ async function listFolders(filters = {}) {
   const conditions = [];
   const params = [];
 
-  if (filters.search) {
-    conditions.push('name LIKE ?');
-    params.push(`%${filters.search}%`);
-  }
-
-  if (filters.ownerId !== undefined) {
-    conditions.push('owner_id = ?');
+  if (filters.ownerId !== undefined && filters.ownerId !== null) {
+    conditions.push('f.owner_id = ?');
     params.push(filters.ownerId);
   }
 
+  if (filters.search) {
+    conditions.push('f.name LIKE ?');
+    params.push(`%${filters.search}%`);
+  }
+
   if (filters.status) {
-    conditions.push('status = ?');
+    conditions.push('f.status = ?');
     params.push(filters.status);
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const [rows] = await pool.query(
-    `SELECT id, name, parent_id, owner_id, status, deleted_at, created_at, updated_at
-     FROM folders
+    `SELECT f.id, f.name, f.parent_id, fp.name AS parent_name, f.owner_id, f.status, f.deleted_at, f.created_at, f.updated_at,
+            u.full_name AS owner_full_name,
+            u.email AS owner_email,
+            u.avatar_url AS owner_avatar_url
+     FROM folders f
+     LEFT JOIN folders fp ON fp.id = f.parent_id
+     LEFT JOIN users u ON u.id = f.owner_id
      ${whereClause}
-     ORDER BY created_at DESC`,
+     ORDER BY f.created_at DESC`,
     params,
   );
 
@@ -46,9 +67,14 @@ async function listFolders(filters = {}) {
 
 async function findFolderById(id) {
   const [rows] = await pool.query(
-    `SELECT id, name, parent_id, owner_id, status, deleted_at, created_at, updated_at
-     FROM folders
-     WHERE id = ?
+    `SELECT f.id, f.name, f.parent_id, fp.name AS parent_name, f.owner_id, f.status, f.deleted_at, f.created_at, f.updated_at,
+            u.full_name AS owner_full_name,
+            u.email AS owner_email,
+            u.avatar_url AS owner_avatar_url
+     FROM folders f
+     LEFT JOIN folders fp ON fp.id = f.parent_id
+     LEFT JOIN users u ON u.id = f.owner_id
+     WHERE f.id = ?
      LIMIT 1`,
     [id],
   );
@@ -66,7 +92,10 @@ async function createFolder(payload) {
   return findFolderById(result.insertId);
 }
 
-async function updateFolder(id, payload) {
+async function updateFolder(id, payload, ownerId) {
+  const existing = await findFolderById(id);
+  if (!existing || (ownerId !== undefined && ownerId !== null && Number(existing.ownerId) !== Number(ownerId))) return null;
+
   const fields = [];
   const params = [];
 
@@ -100,23 +129,32 @@ async function updateFolder(id, payload) {
   return findFolderById(id);
 }
 
-async function softDeleteFolder(id) {
+async function softDeleteFolder(id, ownerId) {
+  const existing = await findFolderById(id);
+  if (!existing || (ownerId !== undefined && ownerId !== null && Number(existing.ownerId) !== Number(ownerId))) return null;
+
   await pool.query("UPDATE folders SET status = 'trash', deleted_at = COALESCE(deleted_at, NOW()) WHERE id = ?", [id]);
   return findFolderById(id);
 }
 
-async function restoreFolder(id) {
+async function restoreFolder(id, ownerId) {
+  const existing = await findFolderById(id);
+  if (!existing || (ownerId !== undefined && ownerId !== null && Number(existing.ownerId) !== Number(ownerId))) return null;
+
   await pool.query("UPDATE folders SET status = 'active', deleted_at = NULL WHERE id = ?", [id]);
   return findFolderById(id);
 }
 
-async function permanentlyDeleteFolder(id) {
+async function permanentlyDeleteFolder(id, ownerId) {
+  const existing = await findFolderById(id);
+  if (!existing || (ownerId !== undefined && ownerId !== null && Number(existing.ownerId) !== Number(ownerId))) return false;
+
   const [result] = await pool.query('DELETE FROM folders WHERE id = ?', [id]);
   return result.affectedRows > 0;
 }
 
-async function getFolderTree() {
-  const folders = await listFolders({ status: 'active' });
+async function getFolderTree(ownerId) {
+  const folders = await listFolders({ status: 'active', ownerId });
   const folderMap = new Map(folders.map((folder) => [folder.id, { ...folder, children: [] }]));
   const roots = [];
 

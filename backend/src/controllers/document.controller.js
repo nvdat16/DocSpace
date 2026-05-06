@@ -2,7 +2,7 @@ const documentService = require('../services/document.service');
 
 exports.listDocuments = async (req, res, next) => {
   try {
-    const result = await documentService.listDocuments(req.query);
+    const result = await documentService.listDocuments(req.query, req.user?.id);
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return next(error);
@@ -11,7 +11,7 @@ exports.listDocuments = async (req, res, next) => {
 
 exports.getDocumentById = async (req, res, next) => {
   try {
-    const result = await documentService.getDocumentById(req.params.id);
+    const result = await documentService.getDocumentById(req.params.id, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -24,7 +24,7 @@ exports.getDocumentById = async (req, res, next) => {
 
 exports.createDocument = async (req, res, next) => {
   try {
-    const result = await documentService.createDocument(req.body);
+    const result = await documentService.createDocument(req.body, req.user?.id);
     return res.status(201).json({ success: true, data: result });
   } catch (error) {
     return next(error);
@@ -33,7 +33,7 @@ exports.createDocument = async (req, res, next) => {
 
 exports.updateDocument = async (req, res, next) => {
   try {
-    const result = await documentService.updateDocument(req.params.id, req.body);
+    const result = await documentService.updateDocument(req.params.id, req.body, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -46,7 +46,7 @@ exports.updateDocument = async (req, res, next) => {
 
 exports.deleteDocument = async (req, res, next) => {
   try {
-    const result = await documentService.softDeleteDocument(req.params.id);
+    const result = await documentService.softDeleteDocument(req.params.id, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -59,7 +59,7 @@ exports.deleteDocument = async (req, res, next) => {
 
 exports.restoreDocument = async (req, res, next) => {
   try {
-    const result = await documentService.restoreDocument(req.params.id);
+    const result = await documentService.restoreDocument(req.params.id, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -72,7 +72,7 @@ exports.restoreDocument = async (req, res, next) => {
 
 exports.deleteDocumentForever = async (req, res, next) => {
   try {
-    const deleted = await documentService.permanentlyDeleteDocument(req.params.id);
+    const deleted = await documentService.permanentlyDeleteDocument(req.params.id, req.user?.id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }

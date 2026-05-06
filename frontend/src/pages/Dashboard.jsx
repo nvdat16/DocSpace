@@ -1,3 +1,6 @@
+import React from 'react';
+import DocumentDashboard from './DocumentDashboard';
+
 export default function Dashboard() {
-  return <h2>Dashboard</h2>;
+  return <DocumentDashboard />;
 }

@@ -14,11 +14,11 @@ exports.uploadDocument = async (req, res, next) => {
       mimeType: file.mimetype,
       size: file.size,
       tags: req.body.tags ? JSON.parse(req.body.tags) : [],
-      ownerId: req.body.ownerId || null,
+      ownerId: req.user?.id || null,
       folderId: req.body.folderId || null,
     };
 
-    const result = await documentService.createDocument(payload);
+    const result = await documentService.createDocument(payload, req.user?.id);
     return res.status(201).json({ success: true, data: result, message: 'Document uploaded' });
   } catch (error) {
     return next(error);

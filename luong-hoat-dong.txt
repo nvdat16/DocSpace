@@ -1,0 +1,45 @@
+LUỒNG HOẠT ĐỘNG DOCSPACE
+
+1. Mở ứng dụng
+- Frontend React khởi chạy.
+- Kiểm tra token trong localStorage.
+- Nếu có token thì cho vào hệ thống, nếu không thì chuyển sang trang đăng nhập.
+
+2. Đăng ký / đăng nhập
+- Người dùng nhập thông tin đăng ký hoặc đăng nhập.
+- Frontend gửi request đến API backend.
+- Backend kiểm tra dữ liệu và trả về token + thông tin người dùng.
+- Frontend lưu token vào localStorage và cập nhật trạng thái đăng nhập.
+
+3. Tự động gửi token
+- Mỗi request từ frontend tới backend sẽ tự động gắn header Authorization: Bearer <token>.
+- Backend đọc token và xác định user đang đăng nhập.
+
+4. Tải danh sách tài liệu / thư mục
+- Frontend gọi API lấy documents và folders.
+- Backend chỉ trả về dữ liệu thuộc owner_id của user hiện tại.
+- Frontend hiển thị dữ liệu lên dashboard.
+
+5. Tạo thư mục
+- Người dùng mở form tạo thư mục.
+- Frontend gửi tên thư mục và parent_id lên backend.
+- Backend gán owner_id theo token và lưu vào MySQL.
+- Frontend tải lại danh sách thư mục.
+
+6. Upload tài liệu
+- Người dùng nhấn Upload tài liệu.
+- Frontend mở modal nhập metadata.
+- Người dùng chọn file từ máy và nhập title, description, tags, folder.
+- Frontend gửi FormData lên backend.
+- Backend nhận file, lưu metadata và gán owner_id theo token.
+- Frontend tải lại danh sách tài liệu.
+
+7. Xem và quản lý tài liệu
+- Người dùng lọc, tìm kiếm, đổi kiểu hiển thị.
+- Các thao tác như cập nhật, xóa, khôi phục đều gọi API.
+- Backend kiểm tra quyền sở hữu trước khi xử lý.
+
+8. Đăng xuất
+- Frontend xóa token khỏi localStorage.
+- Trạng thái đăng nhập bị xóa.
+- Người dùng được chuyển về trang đăng nhập.

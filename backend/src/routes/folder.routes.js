@@ -1,7 +1,10 @@
 const express = require('express');
 const folderController = require('../controllers/folder.controller');
+const auth = require('../middlewares/auth');
 
 const router = express.Router();
+
+router.use(auth);
 
 router.get('/', folderController.listFolders);
 router.get('/tree', folderController.getFolderTree);

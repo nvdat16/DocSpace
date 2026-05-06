@@ -2,8 +2,11 @@ const express = require('express');
 const documentController = require('../controllers/document.controller');
 const upload = require('../middlewares/upload');
 const uploadController = require('../controllers/upload.controller');
+const auth = require('../middlewares/auth');
 
 const router = express.Router();
+
+router.use(auth);
 
 router.get('/', documentController.listDocuments);
 router.get('/trash', documentController.listDocuments);

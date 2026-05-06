@@ -2,7 +2,7 @@ const folderService = require('../services/folder.service');
 
 exports.listFolders = async (req, res, next) => {
   try {
-    const result = await folderService.listFolders(req.query);
+    const result = await folderService.listFolders({ ...req.query, ownerId: req.user?.id });
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return next(error);
@@ -11,7 +11,7 @@ exports.listFolders = async (req, res, next) => {
 
 exports.getFolderById = async (req, res, next) => {
   try {
-    const result = await folderService.getFolderById(req.params.id);
+    const result = await folderService.getFolderById(req.params.id, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Folder not found' });
     }
@@ -24,7 +24,7 @@ exports.getFolderById = async (req, res, next) => {
 
 exports.getFolderTree = async (req, res, next) => {
   try {
-    const result = await folderService.getFolderTree();
+    const result = await folderService.getFolderTree(req.user?.id);
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return next(error);
@@ -33,7 +33,7 @@ exports.getFolderTree = async (req, res, next) => {
 
 exports.createFolder = async (req, res, next) => {
   try {
-    const result = await folderService.createFolder(req.body);
+    const result = await folderService.createFolder(req.body, req.user?.id);
     return res.status(201).json({ success: true, data: result });
   } catch (error) {
     return next(error);
@@ -42,7 +42,7 @@ exports.createFolder = async (req, res, next) => {
 
 exports.updateFolder = async (req, res, next) => {
   try {
-    const result = await folderService.updateFolder(req.params.id, req.body);
+    const result = await folderService.updateFolder(req.params.id, req.body, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Folder not found' });
     }
@@ -55,7 +55,7 @@ exports.updateFolder = async (req, res, next) => {
 
 exports.deleteFolder = async (req, res, next) => {
   try {
-    const result = await folderService.softDeleteFolder(req.params.id);
+    const result = await folderService.softDeleteFolder(req.params.id, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Folder not found' });
     }
@@ -68,7 +68,7 @@ exports.deleteFolder = async (req, res, next) => {
 
 exports.restoreFolder = async (req, res, next) => {
   try {
-    const result = await folderService.restoreFolder(req.params.id);
+    const result = await folderService.restoreFolder(req.params.id, req.user?.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Folder not found' });
     }
@@ -81,7 +81,7 @@ exports.restoreFolder = async (req, res, next) => {
 
 exports.deleteFolderForever = async (req, res, next) => {
   try {
-    const deleted = await folderService.permanentlyDeleteFolder(req.params.id);
+    const deleted = await folderService.permanentlyDeleteFolder(req.params.id, req.user?.id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Folder not found' });
     }

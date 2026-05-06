@@ -1,5 +1,19 @@
 const { pool } = require('../config/db');
 
+function safeJsonParse(value, fallback) {
+  if (value === null || value === undefined || value === '') return fallback;
+
+  if (Array.isArray(value)) return value;
+
+  if (typeof value !== 'string') return fallback;
+
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
 function mapDocumentRow(row) {
   return {
     id: Number(row.id),
@@ -8,13 +22,32 @@ function mapDocumentRow(row) {
     fileName: row.file_name || '',
     mimeType: row.mime_type || '',
     size: Number(row.size || 0),
-    tags: row.tags ? JSON.parse(row.tags) : [],
+    tags: safeJsonParse(row.tags, []),
     ownerId: row.owner_id,
     folderId: row.folder_id,
+    folderName: row.folder_name || '',
+    folder: row.folder_id
+      ? {
+          id: Number(row.folder_id),
+          name: row.folder_name || '',
+          parentId: row.folder_parent_id,
+          parentName: row.folder_parent_name || '',
+        }
+      : null,
+    owner:
+      row.owner_id !== null && row.owner_id !== undefined
+        ? {
+            id: Number(row.owner_id),
+            fullName: row.owner_full_name || '',
+            email: row.owner_email || '',
+            avatarUrl: row.owner_avatar_url || '',
+          }
+        : null,
     status: row.status,
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    fileUrl: row.file_name ? `/uploads/${row.file_name}` : '',
   };
 }
 
@@ -22,58 +55,108 @@ async function listDocuments(filters = {}) {
   const conditions = [];
   const params = [];
 
+  if (filters.ownerId !== undefined && filters.ownerId !== null) {
+    conditions.push('d.owner_id = ?');
+    params.push(filters.ownerId);
+  }
+
   if (filters.search) {
-    conditions.push('(title LIKE ? OR description LIKE ? OR file_name LIKE ?)');
+    conditions.push('(d.title LIKE ? OR d.description LIKE ? OR d.file_name LIKE ?)');
     const term = `%${filters.search}%`;
     params.push(term, term, term);
   }
 
   if (filters.tag) {
-    conditions.push('JSON_CONTAINS(tags, JSON_QUOTE(?))');
+    conditions.push('JSON_CONTAINS(d.tags, JSON_QUOTE(?))');
     params.push(filters.tag);
   }
 
   if (filters.folderId !== undefined) {
-    conditions.push('folder_id = ?');
+    conditions.push('d.folder_id = ?');
     params.push(filters.folderId);
   }
 
   if (filters.ownerId !== undefined) {
-    conditions.push('owner_id = ?');
+    conditions.push('d.owner_id = ?');
     params.push(filters.ownerId);
   }
 
   if (filters.status) {
-    conditions.push('status = ?');
+    conditions.push('d.status = ?');
     params.push(filters.status);
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const [rows] = await pool.query(
-    `SELECT id, title, description, file_name, mime_type, size, tags, owner_id, folder_id, status, deleted_at, created_at, updated_at
-     FROM documents
+    `SELECT d.id,
+            d.title,
+            d.description,
+            d.file_name,
+            d.mime_type,
+            d.size,
+            d.tags,
+            d.owner_id,
+            u.full_name AS owner_full_name,
+            u.email AS owner_email,
+            u.avatar_url AS owner_avatar_url,
+            d.folder_id,
+            f.name AS folder_name,
+                 f.parent_id AS folder_parent_id,
+                 fp.name AS folder_parent_name,
+            d.status,
+            d.deleted_at,
+            d.created_at,
+            d.updated_at
+     FROM documents d
+     LEFT JOIN folders f ON f.id = d.folder_id
+               LEFT JOIN folders fp ON fp.id = f.parent_id
+     LEFT JOIN users u ON u.id = d.owner_id
      ${whereClause}
-     ORDER BY created_at DESC`,
+     ORDER BY d.created_at DESC`,
     params,
   );
 
   return rows.map(mapDocumentRow);
 }
 
-async function findDocumentById(id) {
+async function findDocumentById(id, ownerId) {
+  const ownerClause = ownerId !== undefined && ownerId !== null ? 'AND d.owner_id = ?' : '';
+  const params = ownerClause ? [id, ownerId] : [id];
   const [rows] = await pool.query(
-    `SELECT id, title, description, file_name, mime_type, size, tags, owner_id, folder_id, status, deleted_at, created_at, updated_at
-     FROM documents
-     WHERE id = ?
+    `SELECT d.id,
+            d.title,
+            d.description,
+            d.file_name,
+            d.mime_type,
+            d.size,
+            d.tags,
+            d.owner_id,
+            u.full_name AS owner_full_name,
+            u.email AS owner_email,
+            u.avatar_url AS owner_avatar_url,
+            d.folder_id,
+            f.name AS folder_name,
+                 f.parent_id AS folder_parent_id,
+                 fp.name AS folder_parent_name,
+            d.status,
+            d.deleted_at,
+            d.created_at,
+            d.updated_at
+     FROM documents d
+     LEFT JOIN folders f ON f.id = d.folder_id
+               LEFT JOIN folders fp ON fp.id = f.parent_id
+     LEFT JOIN users u ON u.id = d.owner_id
+     WHERE d.id = ?
+     ${ownerClause}
      LIMIT 1`,
-    [id],
+    params,
   );
 
   return rows[0] ? mapDocumentRow(rows[0]) : null;
 }
 
 async function createDocument(payload) {
-  const tags = Array.isArray(payload.tags) ? JSON.stringify(payload.tags) : JSON.stringify([]);
+  const tags = JSON.stringify(safeJsonParse(payload.tags, []));
   const [result] = await pool.query(
     `INSERT INTO documents (title, description, file_name, mime_type, size, tags, owner_id, folder_id, status, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL)`,
@@ -89,10 +172,13 @@ async function createDocument(payload) {
     ],
   );
 
-  return findDocumentById(result.insertId);
+  return findDocumentById(result.insertId, payload.ownerId || null);
 }
 
-async function updateDocument(id, payload) {
+async function updateDocument(id, payload, ownerId) {
+  const existing = await findDocumentById(id, ownerId);
+  if (!existing) return null;
+
   const fields = [];
   const params = [];
 
@@ -144,30 +230,39 @@ async function updateDocument(id, payload) {
     }
   }
 
-  if (!fields.length) return findDocumentById(id);
+  if (!fields.length) return findDocumentById(id, ownerId);
 
   params.push(id);
   await pool.query(`UPDATE documents SET ${fields.join(', ')} WHERE id = ?`, params);
-  return findDocumentById(id);
+  return findDocumentById(id, ownerId);
 }
 
-async function softDeleteDocument(id) {
+async function softDeleteDocument(id, ownerId) {
+  const existing = await findDocumentById(id, ownerId);
+  if (!existing) return null;
+
   await pool.query("UPDATE documents SET status = 'trash', deleted_at = COALESCE(deleted_at, NOW()) WHERE id = ?", [id]);
-  return findDocumentById(id);
+  return findDocumentById(id, ownerId);
 }
 
-async function restoreDocument(id) {
+async function restoreDocument(id, ownerId) {
+  const existing = await findDocumentById(id, ownerId);
+  if (!existing) return null;
+
   await pool.query("UPDATE documents SET status = 'active', deleted_at = NULL WHERE id = ?", [id]);
-  return findDocumentById(id);
+  return findDocumentById(id, ownerId);
 }
 
-async function permanentlyDeleteDocument(id) {
+async function permanentlyDeleteDocument(id, ownerId) {
+  const existing = await findDocumentById(id, ownerId);
+  if (!existing) return false;
+
   const [result] = await pool.query('DELETE FROM documents WHERE id = ?', [id]);
   return result.affectedRows > 0;
 }
 
-async function listTrash() {
-  return listDocuments({ status: 'trash' });
+async function listTrash(ownerId) {
+  return listDocuments({ status: 'trash', ownerId });
 }
 
 module.exports = {
